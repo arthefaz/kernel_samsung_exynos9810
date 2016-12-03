@@ -4727,7 +4727,7 @@ retry:
 		/*
 		 * Recalculate credits when extent tree depth changes.
 		 */
-		if (depth >= 0 && depth != ext_depth(inode)) {
+		if (depth != ext_depth(inode)) {
 			credits = ext4_chunk_trans_blocks(inode, len);
 			depth = ext_depth(inode);
 		}

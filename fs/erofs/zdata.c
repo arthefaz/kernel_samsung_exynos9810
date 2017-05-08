@@ -8,6 +8,7 @@
 #include "compress.h"
 #include <linux/prefetch.h>
 #include <linux/mm_inline.h>
+#include <linux/mm.h>
 
 #include <trace/events/erofs.h>
 

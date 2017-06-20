@@ -16,7 +16,7 @@ void __init_waitqueue_head(wait_queue_head_t *q, const char *name, struct lock_c
 {
 	spin_lock_init(&q->lock);
 	lockdep_set_class_and_name(&q->lock, key, name);
-	INIT_LIST_HEAD(&q->task_list);
+	INIT_LIST_HEAD(&q->head);
 }
 
 EXPORT_SYMBOL(__init_waitqueue_head);
@@ -68,7 +68,7 @@ static void __wake_up_common(wait_queue_head_t *q, unsigned int mode,
 {
 	wait_queue_t *curr, *next;
 
-	list_for_each_entry_safe(curr, next, &q->task_list, task_list) {
+	list_for_each_entry_safe(curr, next, &q->head, entry) {
 		unsigned flags = curr->flags;
 
 		if (curr->func(curr, mode, wake_flags, key) &&
@@ -183,7 +183,7 @@ prepare_to_wait(wait_queue_head_t *q, wait_queue_t *wait, int state)
 
 	wait->flags &= ~WQ_FLAG_EXCLUSIVE;
 	spin_lock_irqsave(&q->lock, flags);
-	if (list_empty(&wait->task_list))
+	if (list_empty(&wait->entry))
 		__add_wait_queue(q, wait);
 	set_current_state(state);
 	spin_unlock_irqrestore(&q->lock, flags);
@@ -197,7 +197,7 @@ prepare_to_wait_exclusive(wait_queue_head_t *q, wait_queue_t *wait, int state)
 
 	wait->flags |= WQ_FLAG_EXCLUSIVE;
 	spin_lock_irqsave(&q->lock, flags);
-	if (list_empty(&wait->task_list))
+	if (list_empty(&wait->entry))
 		__add_wait_queue_tail(q, wait);
 	set_current_state(state);
 	spin_unlock_irqrestore(&q->lock, flags);
@@ -209,7 +209,7 @@ void init_wait_entry(wait_queue_t *wait, int flags)
 	wait->flags = flags;
 	wait->private = current;
 	wait->func = autoremove_wake_function;
-	INIT_LIST_HEAD(&wait->task_list);
+	INIT_LIST_HEAD(&wait->entry);
 }
 EXPORT_SYMBOL(init_wait_entry);
 
@@ -232,10 +232,10 @@ long prepare_to_wait_event(wait_queue_head_t *q, wait_queue_t *wait, int state)
 		 * can't see us, it should wake up another exclusive waiter if
 		 * we fail.
 		 */
-		list_del_init(&wait->task_list);
+		list_del_init(&wait->entry);
 		ret = -ERESTARTSYS;
 	} else {
-		if (list_empty(&wait->task_list)) {
+		if (list_empty(&wait->entry)) {
 			if (wait->flags & WQ_FLAG_EXCLUSIVE)
 				__add_wait_queue_tail(q, wait);
 			else
@@ -276,9 +276,9 @@ void finish_wait(wait_queue_head_t *q, wait_queue_t *wait)
 	 *    have _one_ other CPU that looks at or modifies
 	 *    the list).
 	 */
-	if (!list_empty_careful(&wait->task_list)) {
+	if (!list_empty_careful(&wait->entry)) {
 		spin_lock_irqsave(&q->lock, flags);
-		list_del_init(&wait->task_list);
+		list_del_init(&wait->entry);
 		spin_unlock_irqrestore(&q->lock, flags);
 	}
 }
@@ -289,7 +289,7 @@ int autoremove_wake_function(wait_queue_t *wait, unsigned mode, int sync, void *
 	int ret = default_wake_function(wait, mode, sync, key);
 
 	if (ret)
-		list_del_init(&wait->task_list);
+		list_del_init(&wait->entry);
 	return ret;
 }
 EXPORT_SYMBOL(autoremove_wake_function);

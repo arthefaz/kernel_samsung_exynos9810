@@ -276,25 +276,8 @@ int fscrypt_inherit_context(struct inode *parent, struct inode *child,
 	ctx.flags = ci->ci_flags;
 	memcpy(ctx.master_key_descriptor, ci->ci_master_key_descriptor,
 	       FS_KEY_DESCRIPTOR_SIZE);
-	res = set_nonce(ctx.nonce, ctx.master_key_descriptor);
-	if (res) {
-		printk(KERN_ERR
-			"%s: Failed to set nonce (err:%d)\n", __func__, res);
-		return res;
-	}
-#if defined(CONFIG_DDAR) || defined(CONFIG_FSCRYPT_SDP)
-	ctx.knox_flags = 0;
-#endif
-
-#ifdef CONFIG_FSCRYPT_SDP
-	res = fscrypt_sdp_inherit_context(parent, child, &ctx);
-	if (res) {
-		printk_once(KERN_WARNING
-				"%s: Failed to set sensitive ongoing flag (err:%d)\n", __func__, res);
-		return res;
-	}
-#endif
-
+	get_random_bytes(ctx.nonce, FS_KEY_DERIVATION_NONCE_SIZE);
+	BUILD_BUG_ON(sizeof(ctx) != FSCRYPT_SET_CONTEXT_MAX_SIZE);
 	res = parent->i_sb->s_cop->set_context(child, &ctx,
 						sizeof(ctx), fs_data);
 	if (res)

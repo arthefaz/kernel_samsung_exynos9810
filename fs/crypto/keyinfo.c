@@ -614,6 +614,12 @@ out:
 }
 EXPORT_SYMBOL(fscrypt_get_encryption_info);
 
+/**
+ * fscrypt_put_encryption_info - free most of an inode's fscrypt data
+ *
+ * Free the inode's fscrypt_info.  Filesystems must call this when the inode is
+ * being evicted.  An RCU grace period need not have elapsed yet.
+ */
 void fscrypt_put_encryption_info(struct inode *inode)
 {
 #ifdef CONFIG_FSCRYPT_SDP
@@ -623,230 +629,18 @@ void fscrypt_put_encryption_info(struct inode *inode)
 	inode->i_crypt_info = NULL;
 }
 EXPORT_SYMBOL(fscrypt_put_encryption_info);
-#ifdef CONFIG_FSCRYPT_SDP
-static inline int __find_and_derive_fskey2(const struct inode *inode,
-						const struct fscrypt_context *ctx,
-						struct fscrypt_key *fskey, unsigned int min_keysize,
-						const u8* prefix)
+
+/**
+ * fscrypt_free_inode - free an inode's fscrypt data requiring RCU delay
+ *
+ * Free the inode's cached decrypted symlink target, if any.  Filesystems must
+ * call this after an RCU grace period, just before they free the inode.
+ */
+void fscrypt_free_inode(struct inode *inode)
 {
-	char *description;
-	struct key *keyring_key;
-	struct fscrypt_key *master_key;
-	const struct user_key_payload *ukp;
-	int res;
-
-	description = kasprintf(GFP_NOFS, "%s%*phN", prefix,
-				FS_KEY_DESCRIPTOR_SIZE,
-				ctx->master_key_descriptor);
-	if (!description)
-		return -ENOMEM;
-
-	keyring_key = request_key(&key_type_logon, description, NULL);
-	kfree(description);
-	if (IS_ERR(keyring_key))
-		return PTR_ERR(keyring_key);
-	down_read(&keyring_key->sem);
-
-	if (keyring_key->type != &key_type_logon) {
-		printk_once(KERN_WARNING
-				"%s: key type must be logon\n", __func__);
-		res = -ENOKEY;
-		goto out;
+	if (IS_ENCRYPTED(inode) && S_ISLNK(inode->i_mode)) {
+		kfree(inode->i_link);
+		inode->i_link = NULL;
 	}
-	ukp = user_key_payload_locked(keyring_key);
-	if (!ukp) {
-		/* key was revoked before we acquired its semaphore */
-		res = -EKEYREVOKED;
-		goto out;
-	}
-	if (ukp->datalen != sizeof(struct fscrypt_key)) {
-		res = -EINVAL;
-		goto out;
-	}
-	master_key = (struct fscrypt_key *)ukp->data;
-	BUILD_BUG_ON(FS_AES_128_ECB_KEY_SIZE != FS_KEY_DERIVATION_NONCE_SIZE);
-
-	if (master_key->size < min_keysize || master_key->size > FS_MAX_KEY_SIZE
-	    || master_key->size % AES_BLOCK_SIZE != 0) {
-		printk_once(KERN_WARNING
-				"%s: key size incorrect: %d\n",
-				__func__, master_key->size);
-		res = -ENOKEY;
-		goto out;
-	}
-	memcpy(fskey, master_key, sizeof(struct fscrypt_key));
-	res = 0;
-out:
-	up_read(&keyring_key->sem);
-	key_put(keyring_key);
-	return res;
 }
-
-static inline int __find_and_derive_fskey(struct inode *inode,
-						const struct fscrypt_context *ctx,
-						struct fscrypt_key *fskey, unsigned int min_keysize)
-{
-	int res;
-	res = __find_and_derive_fskey2(inode, ctx, fskey, min_keysize,
-									FS_KEY_DESC_PREFIX);
-	if (res && inode->i_sb->s_cop->key_prefix) {
-		int res2 = __find_and_derive_fskey2(inode, ctx, fskey, min_keysize,
-				inode->i_sb->s_cop->key_prefix);
-		if (res2) {
-			if (res2 == -ENOKEY)
-				res = -ENOKEY;
-			goto out;
-		}
-		res = 0;
-	} else if (res) {
-		goto out;
-	}
-
-out:
-	return res;
-}
-
-/* The function is only for regular files */
-static int derive_fek(struct inode *inode,
-						const struct fscrypt_context *ctx,
-						struct fscrypt_info *crypt_info,
-						u8 *fek, u32 fek_len)
-{
-	int res = 0;
-	/*
-	 * 1. [ Native / Uninitialized / To_sensitive ]  --> Plain fek
-	 * 2. [ Native / Uninitialized / Non_sensitive ] --> Plain fek
-	 */
-	if (fscrypt_sdp_is_uninitialized(crypt_info))
-	{
-		res = fscrypt_sdp_derive_uninitialized_dek(crypt_info, fek, fek_len);
-	}
-	/*
-	 * 3. [ Native / Initialized / Sensitive ]     --> { fek }_SDPK
-	 * 4. [ Non_native / Initialized / Sensitive ] --> { fek }_SDPK
-	 */
-	else if (fscrypt_sdp_is_sensitive(crypt_info))
-	{
-		res = fscrypt_sdp_derive_dek(crypt_info, fek, fek_len);
-	}
-	/*
-	 * 5. [ Native / Initialized / Non_sensitive ] --> { fek }_cekey
-	 */
-	else if (fscrypt_sdp_is_native(crypt_info))
-	{
-		res = fscrypt_sdp_derive_fek(inode, crypt_info, fek, fek_len);
-	}
-	/*
-	 * else { N/A }
-	 *
-	 * Not classified file.
-	 * 6. [ Non_native / Initialized / Non_sensitive ]
-	 * 7. [ Non_native / Initialized / To_sensitive ]
-	 */
-	return res;
-}
-
-int fscrypt_get_encryption_key(struct inode *inode, struct fscrypt_key *key)
-{
-	struct fscrypt_info *crypt_info;
-	struct fscrypt_context ctx;
-	const char *cipher_str;
-	int keysize;
-	int res;
-	//int fname = 0;
-	u8 *raw_key = NULL;
-	if (!inode->i_crypt_info)
-		return -EINVAL;
-	crypt_info = inode->i_crypt_info;
-
-	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
-	if (res < 0) {
-		return res;
-	} else if (res != sizeof(ctx)) {
-		return -EINVAL;
-	}
-
-	if (ctx.format != FS_ENCRYPTION_CONTEXT_FORMAT_V1)
-		return -EINVAL;
-
-	if (ctx.flags & ~FS_POLICY_FLAGS_VALID)
-		return -EINVAL;
-
-	res = determine_cipher_type(crypt_info, inode, &cipher_str, &keysize);
-	if (res)
-		goto out;
-
-	raw_key = kmalloc(FS_MAX_KEY_SIZE, GFP_NOFS);
-	if (!raw_key)
-		goto out;
-
-	/*
-	 * This cannot be a stack buffer because it is passed to the scatterlist
-	 * crypto API as part of key derivation.
-	 */
-	 
-	res = -ENOMEM;
-	res = validate_user_key(crypt_info, &ctx, raw_key, FS_KEY_DESC_PREFIX,
-			keysize);
-	if (res && inode->i_sb->s_cop->key_prefix) {
-		int res2 = validate_user_key(crypt_info, &ctx, raw_key,
-				inode->i_sb->s_cop->key_prefix,
-				keysize);
-		if (res2) {
-			if (res2 == -ENOKEY)
-				res = -ENOKEY;
-			goto out;
-		}
-		res = 0;
-	} else if (res) {
-		goto out;
-	}
-	memcpy(key->raw, raw_key, keysize);
-	key->size = keysize;
-
-out:
-	return res;
-}
-EXPORT_SYMBOL(fscrypt_get_encryption_key);
-
-int fscrypt_get_encryption_kek(struct inode *inode,
-							struct fscrypt_info *crypt_info,
-							struct fscrypt_key *kek)
-{
-	struct fscrypt_context ctx;
-	const char *cipher_str;
-	int keysize;
-	int res;
-
-	if (!crypt_info)
-		return -EINVAL;
-
-	res = inode->i_sb->s_cop->get_context(inode, &ctx, sizeof(ctx));
-	if (res < 0) {
-		return res;
-	} else if (res != sizeof(ctx)) {
-		return -EINVAL;
-	}
-
-	if (ctx.format != FS_ENCRYPTION_CONTEXT_FORMAT_V1)
-		return -EINVAL;
-
-	if (ctx.flags & ~FS_POLICY_FLAGS_VALID)
-		return -EINVAL;
-
-	res = determine_cipher_type(crypt_info, inode, &cipher_str, &keysize);
-	if (res)
-		goto out;
-
-	/*
-	 * This cannot be a stack buffer because it is passed to the scatterlist
-	 * crypto API as part of key derivation.
-	 */
-	res = -ENOMEM;
-	res = __find_and_derive_fskey(inode, &ctx, kek, keysize);
-
-out:
-	return res;
-}
-EXPORT_SYMBOL(fscrypt_get_encryption_kek);
-#endif
+EXPORT_SYMBOL(fscrypt_free_inode);

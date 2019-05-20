@@ -85,9 +85,9 @@ int fscrypt_zeroout_range(const struct inode *inode, pgoff_t lblk,
 #ifdef CONFIG_FS_PRIVATE_ENCRYPTION
 		if (!inode->i_mapping->fmp_ci.private_algo_mode) {
 #endif /* CONFIG FS_PRIVATE_ENCRYPTION */
-		err = fscrypt_do_page_crypto(inode, FS_ENCRYPT, lblk,
-					     ZERO_PAGE(0), ciphertext_page,
-					     PAGE_SIZE, 0, GFP_NOFS);
+		err = fscrypt_crypt_block(inode, FS_ENCRYPT, lblk,
+					  ZERO_PAGE(0), ciphertext_page,
+					  PAGE_SIZE, 0, GFP_NOFS);
 		if (err)
 			goto errout;
 #ifdef CONFIG_FS_PRIVATE_ENCRYPTION

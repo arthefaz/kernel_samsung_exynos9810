@@ -1067,7 +1067,10 @@ static int ext4_drop_inode(struct inode *inode)
 		drop = 1;
 	}
 #endif
-
+#ifdef CONFIG_FS_ENCRYPTION_INLINE_CRYPT
+	if (!drop)
+		drop = fscrypt_drop_inode(inode);
+#endif
 	trace_ext4_drop_inode(inode, drop);
 	return drop;
 }

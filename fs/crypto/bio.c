@@ -45,33 +45,43 @@ int fscrypt_zeroout_range(const struct inode *inode, pgoff_t lblk,
 {
 	const unsigned int blockbits = inode->i_blkbits;
 	const unsigned int blocksize = 1 << blockbits;
+	const bool inlinecrypt = fscrypt_inode_uses_inline_crypto(inode);
 	struct page *ciphertext_page;
 	struct bio *bio;
 	int ret, err = 0;
 
-	ciphertext_page = fscrypt_alloc_bounce_page(GFP_NOWAIT);
-	if (!ciphertext_page)
-		return -ENOMEM;
+	if (inlinecrypt) {
+		ciphertext_page = ZERO_PAGE(0);
+	} else {
+		ciphertext_page = fscrypt_alloc_bounce_page(GFP_NOWAIT);
+		if (!ciphertext_page)
+			return -ENOMEM;
+	}
 
 	while (len--) {
 #ifdef CONFIG_FS_PRIVATE_ENCRYPTION
 		if (!inode->i_mapping->fmp_ci.private_algo_mode) {
-#endif /* CONFIG FS_PRIVATE_ENCRYPTION */
-		err = fscrypt_crypt_block(inode, FS_ENCRYPT, lblk,
-					  ZERO_PAGE(0), ciphertext_page,
-					  blocksize, 0, GFP_NOFS);
-		if (err)
-			goto errout;
-#ifdef CONFIG_FS_PRIVATE_ENCRYPTION
 		} else {
 			memset(page_address(ciphertext_page), 0, PAGE_SIZE);
 			ciphertext_page->mapping = inode->i_mapping;
 		}
 #endif /* CONFIG FS_PRIVATE_ENCRYPTION */
+		if (!inlinecrypt) {
+			err = fscrypt_crypt_block(inode, FS_ENCRYPT, lblk,
+						  ZERO_PAGE(0), ciphertext_page,
+						  blocksize, 0, GFP_NOFS);
+			if (err)
+				goto errout;
+		}
 
 		bio = bio_alloc(GFP_NOWAIT, 1);
 		if (!bio) {
 			err = -ENOMEM;
+			goto errout;
+		}
+		err = fscrypt_set_bio_crypt_ctx(bio, inode, lblk, GFP_NOIO);
+		if (err) {
+			bio_put(bio);
 			goto errout;
 		}
 		bio_set_dev(bio, inode->i_sb->s_bdev);
@@ -99,7 +109,8 @@ errout:
 	if (inode->i_mapping->fmp_ci.private_algo_mode)
 		ciphertext_page->mapping = NULL;
 #endif /* CONFIG FS_PRIVATE_ENCRYPTION */
-	fscrypt_free_bounce_page(ciphertext_page);
+	if (!inlinecrypt)
+		fscrypt_free_bounce_page(ciphertext_page);
 	return err;
 }
 EXPORT_SYMBOL(fscrypt_zeroout_range);

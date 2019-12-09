@@ -38,6 +38,23 @@ static inline int set_nonce(char *nonce, char *master_key_desc)
 #endif /* CONFIG FS_CRYPTO_SEC_EXTENSION */
 }
 
+static bool fscrypt_valid_enc_modes(u32 contents_mode, u32 filenames_mode)
+{
+	if (contents_mode == FSCRYPT_MODE_AES_256_XTS &&
+	    filenames_mode == FSCRYPT_MODE_AES_256_CTS)
+		return true;
+
+	if (contents_mode == FSCRYPT_MODE_AES_128_CBC &&
+	    filenames_mode == FSCRYPT_MODE_AES_128_CTS)
+		return true;
+
+	if (contents_mode == FSCRYPT_MODE_ADIANTUM &&
+	    filenames_mode == FSCRYPT_MODE_ADIANTUM)
+		return true;
+
+	return false;
+}
+
 static bool supported_direct_key_modes(const struct inode *inode,
 				       u32 contents_mode, u32 filenames_mode)
 {

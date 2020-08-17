@@ -90,7 +90,6 @@ extern void *__vmalloc_node_range(unsigned long size, unsigned long align,
 			unsigned long start, unsigned long end, gfp_t gfp_mask,
 			pgprot_t prot, unsigned long vm_flags, int node,
 			const void *caller);
-extern void *__vmalloc_node_flags(unsigned long size, int node, gfp_t flags);
 #ifndef CONFIG_MMU
 extern void *__vmalloc_node_flags(unsigned long size, int node, gfp_t flags);
 static inline void *__vmalloc_node_flags_caller(unsigned long size, int node,
@@ -193,12 +192,6 @@ extern long vwrite(char *buf, char *addr, unsigned long count);
 extern struct list_head vmap_area_list;
 extern __init void vm_area_add_early(struct vm_struct *vm);
 extern __init void vm_area_register_early(struct vm_struct *vm, size_t align);
-#ifdef CONFIG_ENABLE_VMALLOC_SAVING
-extern void mark_vmalloc_reserved_area(void *addr, unsigned long size);
-#else
-static inline void mark_vmalloc_reserved_area(void *addr, unsigned long size)
-{ };
-#endif
 
 #ifdef CONFIG_SMP
 # ifdef CONFIG_MMU
@@ -224,12 +217,7 @@ pcpu_free_vm_areas(struct vm_struct **vms, int nr_vms)
 #endif
 
 #ifdef CONFIG_MMU
-#ifdef CONFIG_ENABLE_VMALLOC_SAVING
-extern unsigned long total_vmalloc_size;
-#define VMALLOC_TOTAL total_vmalloc_size
-#else
 #define VMALLOC_TOTAL (VMALLOC_END - VMALLOC_START)
-#endif
 #else
 #define VMALLOC_TOTAL 0UL
 #endif

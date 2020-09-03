@@ -57,7 +57,3 @@ obj-$(CONFIG_PROCA)		+= proca/
 subdir-y += proca/gaf
 obj-y    += proca/gaf/
 
-# Knox SDP
-obj-$(CONFIG_SDP) += sdp/
-obj-$(CONFIG_SDP) += sdp/built-in.o
-

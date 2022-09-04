@@ -798,28 +798,28 @@ ENDPROC(__no_granule_support)
 
 #ifdef CONFIG_RELOCATABLE
 __relocate_kernel:
-	/*
-	 * Iterate over each entry in the relocation table, and apply the
-	 * relocations in place.
-	 */
-	ldr	w9, =__rela_offset		// offset to reloc table
-	ldr	w10, =__rela_size		// size of reloc table
+       /*
+        * Iterate over each entry in the relocation table, and apply the
+        * relocations in place.
+        */
+       ldr     w9, =__rela_offset              // offset to reloc table
+       ldr     w10, =__rela_size               // size of reloc table
 
-	mov_q	x11, KIMAGE_VADDR		// default virtual offset
-	add	x11, x11, x23			// actual virtual offset
-	add	x9, x9, x11			// __va(.rela)
-	add	x10, x9, x10			// __va(.rela) + sizeof(.rela)
+       mov_q   x11, KIMAGE_VADDR               // default virtual offset
+       add     x11, x11, x23                   // actual virtual offset
+       add     x9, x9, x11                     // __va(.rela)
+       add     x10, x9, x10                    // __va(.rela) + sizeof(.rela)
 
-0:	cmp	x9, x10
-	b.hs	1f
-	ldp	x11, x12, [x9], #24
-	ldr	x13, [x9, #-8]
-	cmp	w12, #R_AARCH64_RELATIVE
-	b.ne	0b
-	add	x13, x13, x23			// relocate
-	str	x13, [x11, x23]
-	b	0b
-1:	ret
+0:     cmp     x9, x10
+       b.hs    1f
+       ldp     x11, x12, [x9], #24
+       ldr     x13, [x9, #-8]
+       cmp     w12, #R_AARCH64_RELATIVE
+       b.ne    0b
+       add     x13, x13, x23                   // relocate
+       str     x13, [x11, x23]
+       b       0b
+1:     ret
 ENDPROC(__relocate_kernel)
 #endif
 

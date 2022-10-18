@@ -3593,12 +3593,9 @@ static int btrfs_clone(struct inode *src, struct inode *inode,
 	u64 last_dest_end = destoff;
 
 	ret = -ENOMEM;
-	buf = kmalloc(root->nodesize, GFP_KERNEL | __GFP_NOWARN);
+	buf = kvmalloc(root->nodesize, GFP_KERNEL);
 	if (!buf) {
-		buf = vmalloc(root->nodesize);
-		if (!buf)
-			return ret;
-	}
+		return ret;
 
 	path = btrfs_alloc_path();
 	if (!path) {

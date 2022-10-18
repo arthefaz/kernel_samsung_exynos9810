@@ -8,6 +8,11 @@
 
 #include <trace/events/erofs.h>
 
+static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
+{
+        bio->bi_bdev = bdev;
+}
+
 static void erofs_readendio(struct bio *bio)
 {
 	int i;

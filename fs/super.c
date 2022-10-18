@@ -782,8 +782,8 @@ rescan:
  *
  *	Alters the mount options of a mounted file system.
  */
-// int do_remount_sb2(struct vfsmount *mnt, struct super_block *sb, int flags, void *data, int force)
-int do_remount_sb(struct super_block *sb, int sb_flags, void *data, int force)
+int do_remount_sb2(struct vfsmount *mnt, struct super_block *sb, int sb_flags, void *data, int force)
+//int do_remount_sb(struct super_block *sb, int sb_flags, void *data, int force)
 {
 	int retval;
 	int remount_ro;

@@ -1230,7 +1230,6 @@ vfs_kern_mount(struct file_system_type *type, int flags, const char *name, void 
 	mnt = alloc_vfsmnt(name);
 	if (!mnt)
 		return ERR_PTR(-ENOMEM);
-<<<<<<< HEAD
 #ifdef CONFIG_RKP_NS_PROT
 		rkp_set_data(mnt->mnt,NULL);
 #else

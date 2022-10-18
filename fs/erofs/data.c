@@ -12,7 +12,7 @@ static void erofs_readendio(struct bio *bio)
 {
 	int i;
 	struct bio_vec *bvec;
-	const blk_status_t err = bio->bi_status;
+	const int err = bio->bi_error;
 
 	bio_for_each_segment_all(bvec, bio, i) {
 		struct page *page = bvec->bv_page;
@@ -20,7 +20,7 @@ static void erofs_readendio(struct bio *bio)
 		/* page is already locked */
 		DBG_BUGON(PageUptodate(page));
 
-		if (err)
+		if (unlikely(err))
 			SetPageError(page);
 		else
 			SetPageUptodate(page);

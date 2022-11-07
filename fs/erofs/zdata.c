@@ -747,7 +747,7 @@ static void z_erofs_vle_unzip_kickoff(void *ptr, int bios)
 static inline void z_erofs_vle_read_endio(struct bio *bio)
 {
 	struct erofs_sb_info *sbi = NULL;
-	const int err = bio->bi_error;
+	blk_status_t err = bio->bi_status;
 	unsigned int i;
 	struct bio_vec *bvec;
 
@@ -765,7 +765,7 @@ static inline void z_erofs_vle_read_endio(struct bio *bio)
 		if (sbi)
 			cachemngd = erofs_page_is_managed(sbi, page);
 
-		if (unlikely(err))
+		if (err)
 			SetPageError(page);
 		else if (cachemngd)
 			SetPageUptodate(page);

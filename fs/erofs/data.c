@@ -11,16 +11,11 @@
 
 #include <trace/events/erofs.h>
 
-static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
-{
-        bio->bi_bdev = bdev;
-}
-
 static void erofs_readendio(struct bio *bio)
 {
 	int i;
 	struct bio_vec *bvec;
-	const int err = bio->bi_error;
+	blk_status_t err = bio->bi_status;
 
 	bio_for_each_segment_all(bvec, bio, i) {
 		struct page *page = bvec->bv_page;
@@ -28,7 +23,7 @@ static void erofs_readendio(struct bio *bio)
 		/* page is already locked */
 		DBG_BUGON(PageUptodate(page));
 
-		if (unlikely(err))
+		if (err)
 			SetPageError(page);
 		else
 			SetPageUptodate(page);

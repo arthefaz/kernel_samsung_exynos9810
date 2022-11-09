@@ -374,12 +374,6 @@ static int set_encryption_policy(struct inode *inode,
 	if (!fscrypt_supported_policy(policy, inode))
 		return -EINVAL;
 
-	res = set_nonce(ctx.nonce, ctx.master_key_descriptor);
-	if (res) {
-		printk(KERN_ERR
-			"%s: Failed to set nonce (err:%d)\n", __func__, res);
-		return res;
-	}
 	return inode->i_sb->s_cop->set_context(inode, &ctx, sizeof(ctx), NULL);
 
 	switch (policy->version) {

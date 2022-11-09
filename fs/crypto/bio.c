@@ -149,21 +149,9 @@ int fscrypt_zeroout_range(const struct inode *inode, pgoff_t lblk,
 	if (WARN_ON(nr_pages <= 0))
 		return -EINVAL;
 
-	while (len--) {
-#ifdef CONFIG_FS_PRIVATE_ENCRYPTION
-		if (!inode->i_mapping->fmp_ci.private_algo_mode) {
-		} else {
-			memset(page_address(ciphertext_page), 0, PAGE_SIZE);
-			ciphertext_page->mapping = inode->i_mapping;
-		}
-#endif /* CONFIG FS_PRIVATE_ENCRYPTION */
-		if (!inlinecrypt) {
-			err = fscrypt_crypt_block(inode, FS_ENCRYPT, lblk,
-						  ZERO_PAGE(0), ciphertext_page,
-						  blocksize, 0, GFP_NOFS);
-			if (err)
-				goto errout;
-		}
+	BUILD_BUG_ON(ARRAY_SIZE(pages) > BIO_MAX_PAGES);
+	nr_pages = min_t(unsigned int, ARRAY_SIZE(pages),
+			 (len + blocks_per_page - 1) >> blocks_per_page_bits);
 
 	/* This always succeeds since __GFP_DIRECT_RECLAIM is set. */
 	bio = bio_alloc(GFP_NOFS, nr_pages);
@@ -201,11 +189,6 @@ int fscrypt_zeroout_range(const struct inode *inode, pgoff_t lblk,
 		bio_reset(bio);
 	} while (len != 0);
 	err = 0;
-errout:
-#ifdef CONFIG_FS_PRIVATE_ENCRYPTION
-	if (inode->i_mapping->fmp_ci.private_algo_mode)
-		ciphertext_page->mapping = NULL;
-#endif /* CONFIG FS_PRIVATE_ENCRYPTION */
 out:
 	bio_put(bio);
 	for (i = 0; i < nr_pages; i++)

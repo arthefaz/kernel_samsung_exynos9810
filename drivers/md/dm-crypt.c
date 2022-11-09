@@ -316,7 +316,7 @@ static void dm_crypt_bio_trace_end(struct crypt_config *cc, struct bio *bio)
 	btrace->end[idx].sec = bio->bi_iter.bi_sector;
 	btrace->end[idx].bio = bio;
 	btrace->end[idx].io = io;
-	btrace->end[idx].err = bio->bi_error;
+	btrace->end[idx].err = bio->bi_status;
 	spin_unlock_irqrestore(&btrace->end_lock, flags);
 }
 
@@ -1268,7 +1268,7 @@ static void crypt_endio(struct bio *clone)
 
 	dm_crypt_bio_trace_end(cc, clone);
 	if (cc->hw_fmp) {
-		error = clone->bi_error;
+		error = clone->bi_status;
 		bio_put(clone);
 	} else {
 		/*
@@ -1698,7 +1698,6 @@ static int crypt_setkey_allcpus(struct crypt_config *cc)
 	subkey_size = (cc->key_size - cc->key_extra_size) >> ilog2(cc->tfms_count);
 
 	if (cc->hw_fmp) {
-		struct fmp_data_setting fmp_data;
 
 		if (!cc->fmp.vops || !cc->fmp.pdev) {
 			err = -ENODEV;
@@ -1711,17 +1710,7 @@ static int crypt_setkey_allcpus(struct crypt_config *cc)
 			return err;
 		}
 
-		memcpy(fmp_disk_key, cc->key, cc->key_size);
-		memset(fmp_data.disk.key, 0, FMP_MAX_KEY_SIZE);
-		memcpy(fmp_data.disk.key, fmp_disk_key, cc->key_size);
-		fmp_data.disk.key_size = cc->key_size;
 
-		r = cc->fmp.vops->set_disk_key(cc->fmp.pdev, &fmp_data);
-		if (r) {
-			pr_err("dm-crypt: Fail to set fmp disk key. r(%d)\n", r);
-			err = r;
-			return err;
-		}
 		pr_info("%s: fmp disk key is set\n", __func__);
 	} else {
 		for (i = 0; i < cc->tfms_count; i++) {
@@ -1785,7 +1774,6 @@ static int crypt_clear_key(struct crypt_config *cc)
 	}
 
 	memset(disk_key, 0, cc->key_size);
-	ret = cc->fmp.vops->clear_disk_key(cc->fmp.pdev);
 	if (ret)
 		pr_err("dm-crypt: Fail to clear disk key. ret(%d)\n", ret);
 
@@ -1856,10 +1844,6 @@ static struct exynos_fmp_variant_ops *dm_exynos_fmp_get_vops(void)
 		goto out;
 	}
 
-	fmp_vops = exynos_fmp_get_variant_ops(node);
-	if (!fmp_vops)
-		pr_err("%s: Fail to get fmp_vops\n", __func__);
-
 	of_node_put(node);
 out:
 	return fmp_vops;
@@ -1876,9 +1860,6 @@ static struct platform_device *dm_exynos_fmp_get_pdevice(void)
 		goto out;
 	}
 
-	fmp_pdev = exynos_fmp_get_pdevice(node);
-	if (!fmp_pdev)
-		pr_err("%s: Fail to get fmp platform device\n", __func__);
 out:
 	return fmp_pdev;
 }

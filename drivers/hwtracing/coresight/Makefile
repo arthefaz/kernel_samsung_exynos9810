@@ -16,3 +16,5 @@ obj-$(CONFIG_CORESIGHT_SOURCE_ETM4X) += coresight-etm4x.o \
 					coresight-etm4x-sysfs.o
 obj-$(CONFIG_CORESIGHT_QCOM_REPLICATOR) += coresight-replicator-qcom.o
 obj-$(CONFIG_CORESIGHT_STM) += coresight-stm.o
+
+obj-y				+= mali/

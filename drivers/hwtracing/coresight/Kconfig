@@ -89,4 +89,6 @@ config CORESIGHT_STM
 	  logging useful software events or data coming from various entities
 	  in the system, possibly running different OSs
 
+source "drivers/hwtracing/coresight/mali/Kconfig"
+
 endif

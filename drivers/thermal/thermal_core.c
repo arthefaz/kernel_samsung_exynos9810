@@ -39,6 +39,7 @@
 #include <net/netlink.h>
 #include <net/genetlink.h>
 #include <linux/suspend.h>
+#include <linux/gaming_control.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/thermal.h>
@@ -467,6 +468,9 @@ static void handle_thermal_trip(struct thermal_zone_device *tz, int trip)
 		return;
 
 	tz->ops->get_trip_type(tz, trip, &type);
+
+	if (thermal_bypass_gaming())
+		trip = 0;
 
 	if (type == THERMAL_TRIP_CRITICAL || type == THERMAL_TRIP_HOT)
 		handle_critical_trips(tz, trip, type);

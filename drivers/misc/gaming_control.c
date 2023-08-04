@@ -62,6 +62,7 @@ static unsigned int back_little_freq, back_little_voltage, back_big_freq, back_b
 static int nr_running_games = 0;
 static bool always_on = 0;
 static bool battery_idle = 0;
+static bool thermal_bypass = 0;
 static bool gaming_mode_initialized = 0;
 
 bool gaming_mode;
@@ -249,6 +250,13 @@ bool battery_idle_gaming(void) {
 	return 0;
 }
 
+bool thermal_bypass_gaming(void) {
+	if (gaming_mode && thermal_bypass)
+		return 1;
+
+	return 0;
+}
+
 static inline void store_game_pid(pid_t pid)
 {
 	int i;
@@ -424,6 +432,7 @@ static struct kobj_attribute type##_attribute =				\
 
 attr_value(always_on);
 attr_value(battery_idle);
+attr_value(thermal_bypass);
 attr_value(min_int_freq);
 attr_value(min_mif_freq);
 attr_value(min_little_freq);
@@ -478,6 +487,7 @@ static struct attribute *gaming_control_attributes[] = {
 	&version_attribute.attr,
 	&always_on_attribute.attr,
 	&battery_idle_attribute.attr,
+	&thermal_bypass_attribute.attr,
 	&min_int_freq_attribute.attr,
 	&min_mif_freq_attribute.attr,
 	&min_little_freq_attribute.attr,

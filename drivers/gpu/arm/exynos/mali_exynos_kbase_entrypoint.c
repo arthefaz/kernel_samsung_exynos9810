@@ -169,9 +169,39 @@ int mali_exynos_ioctl(struct kbase_context *kctx, unsigned int cmd, unsigned lon
 	return 0;
 }
 
+void mali_exynos_update_firstjob_time(void)
+{
+}
+
+void mali_exynos_update_lastjob_time(int slot_nr)
+{
+	CSTD_UNUSED(slot_nr);
+}
+
+void mali_exynos_update_jobsubmit_time(void)
+{
+}
+
+void mali_exynos_sum_jobs_time(int slot_nr)
+{
+	CSTD_UNUSED(slot_nr);
+}
+
+void mali_exynos_amigo_interframe_hw_update_eof(void)
+{
+}
+
+void mali_exynos_amigo_interframe_hw_update(void)
+{
+}
+
 void mali_exynos_set_thread_priority(struct kbase_context *kctx)
 {
 	gpex_cmar_boost_set_thread_priority(kctx->platform_data);
+}
+
+void mali_exynos_set_thread_affinity(void)
+{
 }
 
 void mali_exynos_coherency_reg_map(void)
